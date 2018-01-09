@@ -1,0 +1,30 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import sys
+import GpLog
+from GpDelImg import DelImg
+
+def main():
+	di = DelImg()	
+	fileName=sys.argv[1]
+	if fileName == 'mongo':
+		di.rmFormMongo()
+	else:
+		GpLog.debug("file : "+fileName)	
+		file = open(fileName)
+		for line in file.xreadlines():
+			line = line.rstrip()
+			GpLog.debug(line)
+			GpLog.debug("==============")
+			mydata = line.split(" ")
+			if len(mydata)==2:
+		        	try:
+					di.rm(mydata[0],mydata[1])
+		        	except Exception,ex:
+					GpLog.error("rmfile storageId|"+mydata[0]+"|corbisId|"+mydata[1]) 
+					print traceback.format_exc()
+		file.close()
+
+if __name__ == '__main__':
+	main()

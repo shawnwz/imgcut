@@ -1,0 +1,20 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import pymongo, os
+
+conn = pymongo.Connection('192.168.1.21', 27017)
+
+imageDb = conn.imageDb
+a = imageDb.authenticate("gpImage","_gpImage")
+print a
+imageMeta = imageDb.imageMeta
+tmp = {}
+tmp['xxx'] = '-1'
+a = imageMeta.insert(tmp)
+print a
+
+tmp['xxx'] = '1'
+a = imageMeta.remove(tmp)
+
+print a

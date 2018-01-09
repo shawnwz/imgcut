@@ -1,0 +1,114 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import MySQLdb, sys
+import GpLog
+from GpECKey import ECKey
+from GpConfig import GpConfig
+
+def updateIndex(corbisId,cur):
+	global sOIdSql
+	global iJobOnlineSql
+	cur.execute(sOIdSql % corbisId)
+	orgiId = 0
+	for oid, in cur.fetchall():		
+		orgiId = long(oid)
+		break
+	if orgiId == 0:
+		return	
+	cur.execute(iJobOnlineSql,(orgiId,corbisId))
+
+def updateKey(eckey,corbisId,cur):
+	global skeySql
+	global uOkeySql
+	global uIkeySql
+	
+	cur.execute(skeySql % corbisId)
+	for en,cn in cur.fetchall():
+		endes,cndes=eckey.enMapcn(en,'|')
+		if endes == '':
+			endes,cndes=eckey.cnMapen(cn,'|')
+		#print 'en:',endes
+		#print 'cn:',cndes
+		if endes == '' and cndes == '':
+			pass
+		else:			
+			cur.execute(uOkeySql,(endes,cndes,corbisId))
+			cur.execute(uIkeySql,(endes,cndes,corbisId))
+			updateIndex(corbisId,cur)
+			break
+
+def reMap4DB(eckey,conn):
+	sSql = 'select corbisid from orgi_images where remark=\'ly\''
+	cur = conn.cursor()
+	curUp = conn.cursor()
+	try:
+		cur.execute(sSql)
+		count = 0
+		for corbisId, in cur.fetchall():
+			updateKey(eckey,str(corbisId),curUp)
+			count+=1
+			if count > 5000:
+				conn.commit()
+				count = 0
+	except Exception,ex:
+		GpLog.error('reMapKey at reMap4Db, error=%s' % traceback.format_exc())
+		#print traceback.format_exc()
+		raise
+	finally:
+		if curUp:
+			curUp.close()
+		if cur:
+			cur.close()
+
+def reMap4File(eckey,conn,fileName):
+	file = open(fileName)
+	try:
+		curUp = conn.cursor()
+		count = 0
+		for line in file.xreadlines():
+			line = line.rstrip()
+			updateKey(eckey,line,curUp)
+			count+=1
+			if count > 5000:
+				conn.commit()
+				count = 0		
+	except Exception,ex:		
+		GpLog.error('reMapKey at reMap4Db, error=%s' % traceback.format_exc())
+		#print 
+		raise
+	finally:
+		if file:
+			file.close()
+		
+skeySql = 'select KeyEnglish,KeyChinese from orgi_images where corbisid = \'%s\''
+uOkeySql = 'update orgi_images set KeyEnglish=%s, KeyChinese=%s where corbisid=%s'
+uIkeySql = 'update import_images set KeyEnglish=%s, KeyChinese=%s where corbisid=%s'
+
+iJobOnlineSql  = 'insert into job_image_online'
+iJobOnlineSql += '(image_id,corbis_id,status,type,user_id,try_times,create_time,update_time,valid_time) '
+iJobOnlineSql += 'values(%s,%s,1,0,-1,0,now(),now(),date_add(NOW(), interval 10 minute))'
+sOIdSql = 'select id from orgi_images where corbisid=\'%s\''
+def main():
+	eckey = ECKey()
+	config = GpConfig()
+	conn = MySQLdb.connect(host=config.host,user=config.user,
+		passwd=config.pw,db=config.db,port=config.port,charset='utf8')
+	fileName=sys.argv[1]
+	try:
+		if fileName == 'db':
+			reMap4DB(eckey,conn)
+		else:
+			reMap4File(eckey,conn,fileName)
+		try:
+			conn.commit()
+		except Exception,ex:
+			pass
+	except Exception,ex:
+		conn.rollback()
+	finally:
+		if conn:
+			conn.close()
+
+if __name__ == '__main__':
+	main()

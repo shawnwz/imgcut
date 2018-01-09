@@ -1,0 +1,94 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import xlrd, sys, traceback, os, types, time
+import GpLog, GpUtils
+from GpImpImg import ImpImg
+from GpConfig import GpConfig
+from GpMongoDao import MongoDao
+
+def procXls(xlsFile,desStorageId):
+    try:
+        xlsId=['ProviderId','ContentTypeSecondaryId'
+            ,'CollectionId','MarketingCollectionId'
+            ,'ContentTypeId']
+        ######get images file array
+        absPath = ''
+        if xlsFile.startswith('./'):
+            absPath = os.path.abspath('.')+xlsFile[1:]
+        else:
+            absPath = xlsFile 
+        absPath = os.path.dirname(absPath)
+        GpLog.debug('excel abspath: %s' % absPath)
+        imgPaths = GpUtils.findImageFileName(absPath)
+        #GpLog.debug(imgPaths)
+        #######calc desPath with desStorageId
+        desPath = GpUtils.filePath(desStorageId)
+        GpLog.debug('desStorageId=%s' % desStorageId)
+        GpLog.debug('desPath=%s' % desPath)
+        if desPath == '':
+            GpLog.error('desPath is null!')
+            return
+
+        ii = ImpImg()
+        #######get curr pid
+        currPid = GpUtils.genPid()
+        md = MongoDao()
+        md.addPid(currPid)
+        ################################
+        #open_workbook('dodgy.xls',encoding='cp1252')
+        #xlrd
+        #http://huaxia524151.iteye.com/blog/1173828 
+        xls = xlrd.open_workbook(xlsFile)
+        table = xls.sheets()[0]
+        nrows = table.nrows
+        colNameRow = table.row_values(0);	
+        #for i in range (1,2):
+        for i in range (1,nrows):
+            xrow = table.row_values(i)
+            xdata = {}
+            j=0
+            for v in xrow:
+                if colNameRow[j] in xlsId:
+                    if v == None or v == '':
+                        xdata[colNameRow[j]] = ''
+                    else:
+                        xdata[colNameRow[j]] = int(v)
+                else:
+                        xdata[colNameRow[j]] = v				
+                j = j + 1
+            fileName = xdata['FileName']
+            GpLog.debug('imageFileName=%s' % fileName)
+            #proc fileName not is str 
+            if type(fileName) != types.StringType:
+                fileName = str(fileName)
+                tmpIndex = fileName.find('.')
+                if tmpIndex>0:
+                        fileName=fileName[0:tmpIndex]
+                xdata['FileName'] = fileName
+
+            xdata['ExcelFileName'] = xlsFile
+
+            #image file name
+            imgFile,extName = GpUtils.getImgFileName(imgPaths,fileName)
+            if imgFile == '':
+                GpLog.error('FileName=%s at %s notfound' % (fileName,xlsFile))
+                continue
+            xdata['ImageAbsFileName'] = imgFile
+            xdata['ImageExtName'] = extName
+            ii.imp(xdata,desStorageId,desPath,currPid)
+    except Exception,ex: 
+            print traceback.format_exc()
+
+def main():        
+    xlsFile = sys.argv[1]
+    config = GpConfig()
+    desStorageId = config.desStorageId
+    GpLog.debug('excel file name: %s' % xlsFile)
+    try:                
+        procXls(xlsFile,desStorageId)        
+    except Exception,ex:
+        print traceback.format_exc()
+
+if __name__ == '__main__':
+    main()

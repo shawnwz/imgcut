@@ -1,0 +1,254 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+#########################
+## read image iptc
+######################### 
+
+import sys, traceback, os, time, pymongo, types, MySQLdb
+import GpLog, GpUtils
+from pgmagick import Image, Geometry, Blob
+from GpConfig import GpConfig
+from GpThreadPool import ThreadPool
+
+pathTemp = [['100M',1,'100M'],
+                ['50M',1,'50M'],
+                ['32M',1,'32M'],
+                ['14M',1,'14M'],
+                ['2M',1,'2M'],
+                ['640K',1,'HOVER'],
+                ['650',1,'PREVIEW'],
+                ['305',2,'/home/ssd1/Root448/THUMBNAIL/305'],
+                ['204',2,'/home/ssd1/Root448/THUMBNAIL/204'],
+                ['180',2,'/home/ssd1/Root448/THUMBNAIL/180']
+                ]
+
+fileType=[".jpg",".gif",".tif"]
+
+inch2cm = 2.54
+
+def readIptc(inputImg):
+	global inch2cm
+        result = {}
+        int_width = inputImg.columns()
+        int_height = inputImg.rows()
+        result['width'] = int_width
+        result['height'] = int_height
+        
+        if int_width > int_height:  # HORIZONTAL
+                int_ratio_type = 1
+        elif int_height > int_width:  # VERTICAL
+                int_ratio_type = 2
+        else:  # SQUARE
+                int_ratio_type = 0
+        result['ratioType'] = int_ratio_type
+
+        #read EXIF                
+        result['exifMake']         =inputImg.attribute("EXIF:Make")
+        result['exifModel']        =inputImg.attribute("EXIF:Model")
+        result['exifFocalLength']  =inputImg.attribute("EXIF:FocalLength")
+        result['exifExposureTime'] =inputImg.attribute("EXIF:ExposureTime")
+        result['exifFNumber']      =inputImg.attribute("EXIF:FNumber")
+        result['exifFormat']       =inputImg.format()
+
+        #Resolution
+        result['resolution'] = '%d x %d' % ( int_width, int_height )
+        
+        #calc Print Size
+        img_density = inputImg.density()  #@_@20141105+-
+        if img_density and (img_density.width() == img_density.height()):
+                int_density = img_density.width()
+        else:
+                str_density = inputImg.attribute("EXIF:XResolution")                        
+                if str_density:
+                        str_density_lst = str_density.split('/')                                
+                        if len(str_density_lst) > 1 and str_density_lst[0] and str_density_lst[1]:
+                                int_density = int(str_density_lst[0]) / int(str_density_lst[1])
+                        else:
+                                int_density = density_factor
+                else:
+                        int_density = density_factor
+        result['imgDensity'] = int_density                
+        #if convert to cm
+        str_print_size = ''
+        if inch2cm > 0:
+                str_print_size = str(int_width / int_density * inch2cm) + ' x ' + str(
+                        int_height / int_density * inch2cm) + ' cm'
+        else:
+                str_print_size = str(int_width / int_density) + ' x ' + str(int_height / int_density) + ' inches'
+        result['printSize'] = str_print_size
+        colorSpace = inputImg.attribute("JPEG-Colorspace-Name")                
+
+        #number of channels
+        channel = 3
+        if colorSpace == 'GRAYSCALE':
+                channel = 1
+        elif colorSpace == 'CMYK':
+                channel = 4
+        result['colorSpace'] = colorSpace
+        result['channel'] = channel
+        return result
+
+def readImageMeta(imageMeta,storageId,corbisId):
+	global pathTemp
+	global fileType
+
+	storageId = str(storageId)
+	corbisId = str(corbisId)
+	#print type(s)
+	md5Path = GpUtils.md5Str(corbisId)                
+        rootPath=GpUtils.filePath(storageId)                
+        if rootPath == '':
+                GpLog.error("notfound root path, storageId=%s,corbisId=%s" % (storageId,corbisId))
+                return
+        
+        isMax = True
+        tmpft = ''
+        iptcMsg = None
+        for ptItem in pathTemp:
+        	pt = ptItem[0]
+        	ptype = ptItem[1]
+        	sPath = ptItem[2]        	
+        	path = ''
+        	if ptype == 1:
+                	path = rootPath + sPath + md5Path
+	                b = os.path.exists(path)
+	                if not b:				
+				continue
+		else:
+			path = sPath + md5Path
+		fileName = path+'/'+corbisId
+		notExists = True
+            	if tmpft == '':
+            		for ft in fileType:
+            			b = os.path.exists(fileName+ft)
+            			if b:
+            				tmpft = ft
+            				notExists = False
+            				break
+            	else:
+            		
+            		b = os.path.exists(fileName + tmpft)
+            		if b:
+            			notExists = False            			
+            	if notExists:
+            		continue
+            	fileName = fileName + tmpft
+            	#print 'fileName=%s' % fileName
+            	#print 'isMax=%s,pt=%s' % (isMax,pt)
+            	inputImg = Image(fileName)
+		if isMax and pt.endswith('M'):
+			isMax = False			
+			iptcMsg = readIptc(inputImg)
+			iptcMsg['filePathName'] = fileName
+                	iptcMsg['fileSize'] = os.path.getsize(fileName)
+                	int_width = iptcMsg['width']
+	                int_height = iptcMsg['height']
+	                ratio = float(int_width) / float(int_height)
+	                iptcMsg['ratio'] = int(ratio*100)/100.0
+
+	                nChannel = iptcMsg['channel']
+	                imgMaxSize = int_width * int_height * nChannel
+	                iptcMsg['maxSize'] = imgMaxSize
+
+	                iptcMsg['maxSizeName'] = pt
+                        iptcMsg['maxSizeFileName'] =  fileName
+
+		else:
+			if iptcMsg == None:
+				GpLog.error("notfound max size image, storageId=%s,corbisId=%s,md5Path=%s" % (storageId,corbisId,md5Path))
+				return
+			subImgInfo = {}
+			width = inputImg.columns()
+                	height = inputImg.rows()
+                	nChannel = iptcMsg['channel']
+                	subImgInfo['width'] = width
+                        subImgInfo['height'] = height
+                        #calc imageSize                        
+                        subImgInfo['imageSize'] = width*height*nChannel                        
+                        subImgInfo['filePath'] = fileName
+                        subImgInfo['fileSize'] = os.path.getsize(fileName)
+                        iptcMsg[pt] = subImgInfo
+		##
+	if iptcMsg == None:
+		GpLog.error("notfound image, storageId=%s,corbisId=%s,md5Path=%s" % (storageId,corbisId,md5Path))
+		return
+	iptcMsg['id'] = 0
+	iptcMsg['storageId'] = storageId
+	iptcMsg['extName'] = tmpft[1:]
+	iptcMsg['corbisId'] = corbisId
+	iptcMsg['originalFilename'] = ''
+	imageMeta.insert(iptcMsg)
+
+def main():
+	myConn = None
+	conn = None
+	argc = len(sys.argv)
+	corbisId = '0'
+	if argc == 2:
+		corbisId=sys.argv[1]
+	GpLog.debug("start corbisId=%s" % corbisId)
+	try:
+		config = GpConfig()
+		conn = pymongo.Connection(config.serverUrl)
+		imageDb = conn.imageDb
+		imageDb.authenticate(config.mongoUser,config.mongoPassw)
+		imageMeta = imageDb.imageMeta
+		myConn = MySQLdb.connect(host=config.host,user=config.user,
+           		passwd=config.pw,db=config.db,port=config.port,charset='utf8')
+		sSql = 'select storageId, corbisId from orgi_images where remark!=\'ly\' and corbisId>%s order by corbisId limit %s'
+				
+		cur = myConn.cursor()
+		counter = 0
+		pageSize = 100
+		errCounter = 0
+		tp = ThreadPool(50,10)		
+		#corbisId = '0'
+		stMark = True
+		while True:
+			try:
+				cur.execute(sSql,(corbisId,pageSize))
+			except MySQLdb.OperationalError:
+				if errCounter > 2:
+					GpLog.error("sql execute error,errCounter=%s" % errCounter)
+					#raise
+					break
+				errCounter +=1
+				if conn:
+			                try:
+			                    self.conn.close()
+			                except Exception:
+			                	pass
+			        myConn = MySQLdb.connect(host=config.host,user=config.user,
+           			passwd=config.pw,db=config.db,port=config.port,charset='utf8')
+           			cur = myConn.cursor()
+           			continue
+           		errCounter = 0                    
+			counter +=1
+			cc = 0
+	        	for sid, cid in cur.fetchall():
+	        		cc = cc + 1
+	        		mq = {}
+	        		mq['corbisId'] = str(cid)
+	        		meta = imageMeta.find_one(mq)
+	        		if meta == None:
+	        			if stMark:
+	        				tp.startThreads()
+	        				stMark = False	        			
+	        			tp.addJob(readImageMeta,imageMeta,sid,cid)
+	        		corbisId = cid	        			
+	        	GpLog.debug('complete corbisId=%s, with pageSize=%s' % (corbisId,pageSize))
+	        	if cc < pageSize-1:
+	        		break
+	        tp.waitForComplete()
+	        GpLog.debug("all thread complete.")
+	except Exception,ex:		
+		print traceback.format_exc()
+	finally:
+		if conn:
+			conn.close()
+		if myConn:
+			myConn.close()
+
+if __name__ == '__main__':
+	main()

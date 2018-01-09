@@ -1,0 +1,17 @@
+3 133200534011 /home/works/newimg/data/133200534011.jpg
+3 133200533547 /home/works/newimg/data/133200533547.jpg
+3 133200533369 /home/works/newimg/data/133200533369.jpg
+3 133200533368 /home/works/newimg/data/133200533368.jpg
+3 133200533382 /home/works/newimg/data/133200533382.jpg
+3 133200533135 /home/works/newimg/data/133200533135.jpg
+3 133200534094 /home/works/newimg/data/133200534094.jpg
+3 133200533655 /home/works/newimg/data/133200533655.jpg
+3 133200533627 /home/works/newimg/data/133200533627.jpg
+5 133200533422 /home/works/newimg/data/133200533422.jpg
+3 133200533086 /home/works/newimg/data/133200533086.jpg
+3 133200533292 /home/works/newimg/data/133200533292.jpg
+3 133200533220 /home/works/newimg/data/133200533220.jpg
+3 133200533684 /home/works/newimg/data/133200533684.jpg
+3 133200534098 /home/works/newimg/data/133200534098.jpg
+3 133200533749 /home/works/newimg/data/133200533749.jpg
+3 133200534069 /home/works/newimg/data/133200534069.jpg

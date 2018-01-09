@@ -1,0 +1,88 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import xlrd, sys, traceback, os, time
+import GpLog, GpUtils
+from GpImpTable import ImpTable
+from GpMongoDao import MongoDao
+
+def procCorbisId(md,it,pid,corbisId):
+        try:
+                GpLog.debug('==========corbisId:%s' % corbisId)
+                xdata = md.getImageExcelByCorbisId(corbisId)
+                iptc = md.getImageMetaByCorbisId(corbisId)
+                if xdata == None:
+                        raise Exception('corbisId=%s xdata is null!' % corbisId)
+                if iptc == None:
+                        raise Exception('corbisId=%s iptc is null!' % corbisId)
+                it.procData(xdata,iptc)
+                md.removeCorbisId(pid,corbisId)
+                md.addCutedCorbisId(corbisId)
+                if it.errorMsg['code'] != 0:
+                        md.addImpErrorMsg(it.errorMsg)
+        except Exception,ex:
+                errorMsg = traceback.format_exc()
+                md.removeCorbisId(pid,corbisId)
+                md.addErrorCorbisId(corbisId,errorMsg)
+                GpLog.error('corbisId=%s error msg: %s' 
+                                        % (corbisId,ex))
+                print errorMsg
+
+def runable():
+        maxIdle = 6 * 60
+        sleepTime = 10
+        #5 day
+        removePidTime = 60*60*24*5      
+        try:            
+                md = MongoDao()
+                it = ImpTable()
+                idle = 0
+                pidIdle = {}
+                #modif 1 by ly @20150317 loop process begin
+                #while(idle<=maxIdle):
+                while(True):
+                        try:
+                #modif 1 update by ly  @20150317 end,break loop remove above
+                                allPids = md.getAllPid()
+                                if len(allPids) < 1:
+                                        idle +=1
+                                        GpLog.debug('impTable sleeping at 0.........')
+                                        it.keepMysqlConn()
+                                        time.sleep(sleepTime)
+                                        continue
+                                mark = 0
+                                for pid in allPids:
+                                        corbisId = md.getCorbisId(pid)                                
+                                        if corbisId == None:
+                                                tmpPid = pid.split('-')
+                                                currTime = time.time()
+                                                pTime = 0
+                                                if len(tmpPid)>2:
+                                                        pTime = float(tmpPid[2])
+                                                if currTime - pTime > removePidTime:
+                                                        md.removePid(pid)
+                                                        GpLog.debug('remove pid %s from ' % pid)
+                                        else:
+                                                pidIdle[pid] = 0
+                                                idle = 0
+                                                mark = 1
+                                                #proc corbisId
+                                                procCorbisId(md,it,pid,corbisId)
+                                if mark == 0:
+                                        idle +=1
+                                        GpLog.debug('impTable sleeping at 1.........')
+                                        it.keepMysqlConn()
+                                        time.sleep(sleepTime)
+                        #modif 2 by licl at 20150317 begin
+                        except Exception,ex:
+                                print traceback.format_exc()
+                        #modif 2 by licl at 20150317 end
+                GpLog.debug('impTable over!!!!')
+        except Exception,ex:
+                print traceback.format_exc()
+
+def main():
+        runable()
+
+if __name__ == '__main__':
+	main()

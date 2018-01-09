@@ -1,0 +1,6 @@
+./recutImg fileName.txt
+
+fileName format
+storageId corbisId src
+
+1 1331xxxxxxxxx /home/xxx/yyy.jpg

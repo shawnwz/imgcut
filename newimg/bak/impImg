@@ -1,0 +1,183 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import MySQLdb, xlrd, sys, traceback, time, datetime, types
+
+#####################global var######################
+
+##col config file name
+cfgFile = './col.cfg'
+
+## db config
+host = '115.28.81.88'
+port = 3306
+user = 'root'
+pw   = '1q2w3e4r'
+
+contentType={'659':'3','660':'3','662':'3'}
+contentType['664']='4'
+contentType['665']='4'
+contentType['666']='4'
+contentType['669']='4'
+contentType['680']='4'
+contentType['682']='4'
+contentType['683']='4'
+contentType['690']='4'
+contentType['661']='4'
+
+licModel={'RF':'1','RM':'2'}
+
+idLen={}
+
+##var
+conn = None
+colName = {}
+xColIndex = {}
+keyword = {}
+iSql = ''
+uImportSql='update import_images set CorbisID=%s where Id=%s'
+
+##################global var############################
+
+def init():
+	global conn
+	global iSql
+	global keyword
+	global idLen
+	conn = MySQLdb.connect(host=host,user=user,passwd=pw,db='gaopin_images',port=port,charset='utf8')
+	cfg = open(cfgFile)
+	for line in cfg.xreadlines():
+                line = line.rstrip()
+		index = line.find('=')
+		colName[line[0:index]]=line[index+1:]
+#	print colName
+	iCol = ''
+	iParam = ''
+	for cn in colName.keys():
+		value = colName[cn]
+		if 'x'==value[0:1] or 'p'==value[0:1]:
+			iCol = iCol + ','+cn
+			iParam = iParam + ',%s'
+		#elif other	
+	iSql = 'insert into import_images('+iCol[1:]+') values ('+iParam[1:]+')'
+	print 'insert sql : ' + iSql
+	########### load keyword english => chines
+	kwSql = 'select english,chinese from fr_keyword_collection'
+	cur = conn.cursor()
+        cur.execute(kwSql)
+	for en, cn in cur.fetchall():
+		keyword[en] = cn
+	cur.close()
+	#print keyword	
+	##################corbisId 0000000#############	
+	for i in range(1,9):
+		tmp = ''
+		for j in range(0,8-i):	
+			tmp +='0'
+		idLen[i]=tmp
+	print idLen
+
+def procColType(t,v):
+	if ''==v:
+		return None
+	if 'i'==t:
+		return int(v)
+	elif 'b'==t:
+		return int(v)
+	elif 'd'==t:
+		return xlrd.xldate.xldate_as_datetime(v,0)
+	else:
+		if type(v) is types.UnicodeType:
+			return v.encode('utf8')
+		return v
+
+
+def genCorbisId(ctId,lic,Id):
+	global contentType
+	global licModel
+	global idLen
+	corbisId = '13'
+	sctId = ''
+	if type(ctId) is types.FloatType:
+		sctId = str(int(ctId))
+	else:
+		sctId = str(ctId)
+	if sctId in contentType:
+		corbisId += contentType[sctId]
+	else:
+		raise Exception('ContentTypeId %s error!' % ctId)		
+	if lic in licModel:
+		corbisId +=licModel[lic]
+	else:
+		raise Exception('LicenseModel %s error!' % lic)
+	sId = str(Id)
+	corbisId +=idLen[len(sId)]+sId		
+	print 'corbisId is %s' % corbisId
+	return corbisId
+
+def procRow(row):
+	global conn
+	global iSql
+	global uImportSql
+	global xColIndex
+	dbParam = []
+	iptc = {}
+	for cn in colName.keys():
+		value = colName[cn]	
+		if 'x' == value[0:1]:	
+			index = xColIndex[value[4:]]
+			type = value[2:3]
+			v = procColType(type,row[index])
+			dbParam.append(v)	
+		elif 'p' == value[0:1]:
+			keyName = value[4:]
+			type = value[2:3]
+			v = procColType(type,iptc[keyName])
+			dbParam.append(v)
+	#print dbParam
+	cur = conn.cursor()
+	cur.execute(iSql, dbParam)
+	Id = cur.lastrowid
+	print 'import Id %d' % Id
+	ctId = row[xColIndex['ContentTypeId']]
+	lic = row[xColIndex['LicenseModel']]
+	cId = genCorbisId(ctId,lic,Id)
+	cur.execute(uImportSql,(cId,Id))
+        cur.close()
+        conn.commit()		
+
+def procXls(xlsFile):
+	global xColIndex
+	try:
+		xls = xlrd.open_workbook(xlsFile)
+		table = xls.sheets()[0]
+		nrows = table.nrows
+		print 'excel row count %s' % nrows
+		colNameRow = table.row_values(0);
+		i = 0
+		for cn in colNameRow:
+			xColIndex[cn] = i
+			i = i+1	
+		for i in range (1,2):
+			xrow = table.row_values(i)
+			procRow(xrow)
+			break
+			
+	except Exception,ex: 
+		print traceback.format_exc()
+
+def main():
+	global conn
+	xlsFile = sys.argv[1]
+	try:
+		init()
+		procXls(xlsFile)
+	except Exception,ex:
+		print traceback.format_exc()	
+	if conn:
+                conn.close()
+
+
+if __name__ == '__main__':
+	main()
+

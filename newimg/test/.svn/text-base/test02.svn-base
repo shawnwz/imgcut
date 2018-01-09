@@ -1,0 +1,12 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import os
+
+print os.path.abspath('.')
+for root, dirs, files in os.walk('/home/work/newimg'):  
+#for root, dirs, files in os.walk('./'):  
+	for name in files:  
+		print os.path.join(root, name)
+		print '#####################'
+		print os.path.dirname(os.path.join(root, name))

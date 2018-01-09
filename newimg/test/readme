@@ -1,0 +1,3 @@
+install pymongo
+1. easy_install pymongo
+2. easy_install xlrd

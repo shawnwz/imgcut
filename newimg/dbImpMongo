@@ -1,0 +1,44 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import MySQLdb, sys
+import GpLog
+from GpDelImg import DelImg
+from GpConfig import GpConfig
+from GpMongoDao import MongoDao
+
+def intoDel(conn,md):
+	sSql = 'select storageid,corbisid from orgi_images where remark=\'ly\' '
+	cur = conn.cursor()
+	cur.execute(sSql)
+        for sid, cid in cur.fetchall():
+            md.addDelCorbisId(str(sid),str(cid))
+	cur.close()
+
+def intoReCut(conn,md):
+	sSql = 'select storageid,corbisid from orgi_images where remark=\'ly\' '
+	cur = conn.cursor()
+	cur.execute(sSql)
+        for sid, cid in cur.fetchall():
+            md.addReCutCorbisId(str(sid),str(cid))
+	cur.close()
+
+def main():
+	mark = sys.argv[1]
+	config = GpConfig()
+	md = MongoDao()
+	#mysql conn
+	conn = MySQLdb.connect(host=config.host,user=config.user,
+           passwd=config.pw,db=config.db,port=config.port,charset='utf8')
+	if mark == 'del':
+		intoDel(conn,md)
+	elif mark == 'recut':
+		intoReCut(conn,md)
+	else:
+		print 'not into any collection'
+	
+        if conn:
+        	conn.close()
+
+if __name__ == '__main__':
+	main()

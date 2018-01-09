@@ -1,0 +1,28 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import pymongo, os
+
+print os.getpid()
+
+con = pymongo.Connection('localhost', 27017)
+
+mydb = con.mydb # new a database
+mydb.add_user('test', 'test') # add a user
+mydb.authenticate('test', 'test') # check auth
+
+muser = mydb.user # new a table
+ 
+#muser.save({'id':1, 'name':'test'}) # add a record
+
+#muser.insert({'id':2, 'name':'hello'}) # add a record
+
+muser.create_index('id')
+
+data = {}
+data['id'] = 3
+data['name'] = 'licl'
+#muser.insert(data)
+d1 = muser.find_one({'id':3})
+print d1['name']
+print muser.find_one("{'id':3}") # find a record

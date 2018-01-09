@@ -1,0 +1,30 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import pymongo
+from GpConfig import GpConfig
+
+def main():
+	try:
+                conn = None
+                config = GpConfig()
+                #serverUrl = 'mongodb://localhost:27017'
+                #mongoUser = 'gaopin'
+                #mongoPassw = 'gaopin@2014'
+                conn = pymongo.Connection(config.serverUrl)		
+		#creat db
+                imageDb = conn.imageDb
+                #db add user
+                imageDb.add_user(config.mongoUser,config.mongoPassw)
+                #create image meta table
+                imageMeta = imageDb.imageMeta
+                imageConfig = imageDb.imageConfig
+                imageExcel = imageDb.imageExcel
+                cutCorbisId = imageDb.cutCorbisId
+                conn.disconnect()
+
+	except Exception,ex:
+		print traceback.format_exc()
+
+if __name__ == '__main__':
+	main()

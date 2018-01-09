@@ -1,0 +1,115 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+########################
+## PhotographerId: insert into fr_photographer
+## MediaRatingText => orgiLevel
+######################## 
+
+import sys, traceback, os, time, pymongo, types, MySQLdb
+import GpLog, GpUtils
+from GpConfig import GpConfig
+
+def addPg(conn,name,iPgSql,sPgSql,pg):
+	u8Name = name.encode('utf8')
+        cur = conn.cursor()
+        rowId = 0
+        try:
+		cur.execute(iPgSql,(u8Name,u8Name))
+		rowId = cur.lastrowid
+		conn.commit()
+	except Exception,ex:
+		try:
+			cur.execute(sPgSql, u8Name)
+			for pid, in cur.fetchall():
+				rowId = pid
+				break
+		except Exception,ex1:
+			pass
+	cur.close()
+	pg[name.lower()] = rowId
+	return rowId
+
+def loadPg(conn):
+        pgSql = 'select name,id from fr_photographer'
+        cur = conn.cursor()
+        cur.execute(pgSql)
+        pg = {}
+        for name, pgid in cur.fetchall():
+        	#print type(name),name
+        	pg[name.lower().strip()] = pgid
+        cur.close()
+        pg[''] = 0
+        return pg
+
+def main():
+	myConn = None
+	conn = None
+	try:
+		config = GpConfig()
+		conn = pymongo.Connection(config.serverUrl)
+		imageDb = conn.imageDb
+		imageDb.authenticate(config.mongoUser,config.mongoPassw)
+		imageExcel = imageDb.imageExcel
+		myConn = MySQLdb.connect(host=config.host,user=config.user,
+           		passwd=config.pw,db=config.db,port=config.port,charset='utf8')
+		sSql = 'select corbisId,PhotographerId from orgi_images where remark=\'ly\''
+		
+		uSql1 = 'update orgi_images set MediaRatingText=%s, PhotographerId=%s where corbisId=%s'
+		uSql2 = 'update orgi_images set MediaRatingText=%s where corbisId=%s'
+		
+		iPgSql = 'insert into fr_photographer(name,show_name,create_time) value(%s,%s,now())'
+		sPgSql = 'select id from fr_photographer where name=%s'
+
+		pg = loadPg(myConn)
+
+		cur = myConn.cursor()
+		cur.execute(sSql)
+		cc = 0
+	        for cid, pid in cur.fetchall():
+	        	print 'corbisId: ',cid
+	        	cf = {}
+	        	cf['corbisId'] = str(cid)
+	        	exlData = imageExcel.find_one(cf)
+	        	mrt = ''
+	        	per = ''
+	        	#print exlData
+	        	if exlData:
+	        		#"orgiLevel"
+	        		muk = 'orgiLevel'
+	        		puk = 'Photographer'
+	        		data = exlData['data']	        		
+	        		mrt = data[muk]
+	        		tmppid = 0       		
+	        		if pid == 0:
+	        			per = data[puk]
+	        			if type(per) == types.UnicodeType or type(per) == types.StringType:
+		        			per = per.strip()
+		        			perLower = per.lower()
+		        			if perLower in pg.keys():
+		        				tmppid = pg[perLower]
+		        			else:
+		        				tmppid = addPg(myConn,per,iPgSql,sPgSql,pg)
+	        			
+	        		if tmppid == 0:
+	        			cur.execute(uSql2,(mrt,cid)) 
+	        		else:
+	        			cur.execute(uSql1,(mrt,tmppid,cid))
+	        		cc +=1
+	        	else:
+	        		GpLog.error('notfound excelData,corbisId:' % cid) 
+	        	if cc > 5000:
+	        		myConn.commit()
+	        		cc = 0
+	        myConn.commit()
+	except Exception,ex:
+		myConn.rollback()
+		print traceback.format_exc()
+	finally:
+		if conn:
+			conn.close()
+		if myConn:
+			myConn.close()
+
+if __name__ == '__main__':
+	main()

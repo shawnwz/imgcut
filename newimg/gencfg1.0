@@ -1,0 +1,92 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+
+import MySQLdb, xlrd, sys
+from GpConfig import GpConfig
+
+config = GpConfig()
+
+conn = MySQLdb.connect(host=config.host,user=config.user,
+                        passwd=config.pw,db=config.db,port=config.port,charset='utf8')
+
+######################add table => excel###########
+addt2x = {}
+addt2x['OrgiID']='FileName'
+
+##########
+addt2p = {}
+addt2p['CorbisID'] = 'corbisId'
+addt2p['StorageID'] = 'storageId'
+addt2p['Width']='width'
+addt2p['Height']='height'
+addt2p['MaxSizeCode']='sizeCode'
+addt2p['PhotographerId']='photographerId'
+addt2p['ColorAppearance']='colorAppearance'
+addt2p['OriginalFilename']='originalFilename'
+addt2p['AspectRatio']='ratio'
+addt2p['iptc_media_type']='iptc_media_type'
+addt2p['iptc_camera_provide']='exifMake'
+addt2p['iptc_camera_model']='exifModel'
+addt2p['iptc_camera_focus']='exifFocalLength'
+addt2p['iptc_camera_exposure']='exifExposureTime'
+addt2p['iptc_camera_aperture']='exifFNumber'
+addt2p['iptc_image_rate']='resolution'
+addt2p['iptc_image_print_size']='printSize'
+addt2p['iptc_image_format']='extName'
+addt2p['iptc_image_max_size']='maxSize'
+addt2p['iptc_image_real_size']='fileSize'
+addt2p['SourceImagePath']='filePathName'
+addt2p['iptc_image_direction']='iptc_image_direction'
+addt2p['ModelReleaseRequired']='modelReleaseRequired'
+addt2p['PropertyReleaseRequired']='propertyReleaseRequired'
+addt2p['MediaRatingText']='mediaRatingText'
+addt2p['orgi_MediaRatingText']='orgiMediaRatingText'
+addt2p['LeftPhotographedDate'] = 'leftPhotographedDate'
+addt2p['RightPhotographedDate'] = 'rightPhotographedDate'
+
+
+addt2d = {}
+#addt2d['Status'] = '0'
+#addt2d['Remark'] = config.remark
+addt2d['CreatedAt'] = '@d'
+addt2d['SelectedDate'] = '@d'
+
+###################################################
+
+tableName = sys.argv[2]
+#print tableName
+
+cur = conn.cursor()
+sql = 'desc %s' % tableName
+#sql = 'desc import_images'
+#sql = 'desc orgi_images'
+cur.execute(sql)
+
+tColName={}
+for row in cur:
+	tColName[row[0]]=row[1][0:1]
+
+xls = xlrd.open_workbook(sys.argv[1])
+table = xls.sheets()[0]
+xColName = table.row_values(0)
+sqlColName={}
+for tcn in tColName.keys():
+	sqlColName[tcn] = 'n:'+tColName[tcn]+':'
+	sMark = True
+	for xcn in xColName:
+		if tcn.lower() == xcn.lower():
+			sqlColName[tcn] = 'x:'+tColName[tcn]+':'+xcn
+			sMark = False
+			break
+	if sMark:
+		if tcn in addt2x:
+			sqlColName[tcn] = 'x:'+tColName[tcn]+':'+addt2x[tcn]
+		elif tcn in addt2p:
+			sqlColName[tcn] = 'p:'+tColName[tcn]+':'+addt2p[tcn]
+		elif tcn in addt2d:
+			sqlColName[tcn] = 'd:'+tColName[tcn]+':'+addt2d[tcn]
+
+for cn in sqlColName.keys():
+	print cn+'='+sqlColName[cn]
+

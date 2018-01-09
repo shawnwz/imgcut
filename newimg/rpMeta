@@ -1,0 +1,38 @@
+#! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+import sys, traceback, os, time, pymongo
+import GpLog, GpUtils
+from GpConfig import GpConfig
+
+def main():
+	keys = ['50M', '32M', '14M', '2M', '640K', '650', '305', '240', '180']
+	try:
+		config = GpConfig()
+		conn = pymongo.Connection(config.serverUrl)
+		imageDb = conn.imageDb
+		imageDb.authenticate(config.mongoUser,config.mongoPassw)
+		imageMeta = imageDb.imageMeta
+		cur = imageMeta.find()
+		for meta in cur:
+			for k in keys:
+				if k in meta.keys():
+					tmpk = '_'+k
+					tmpv = meta[k]
+					del meta[k]
+					meta[tmpk] = tmpv
+			meta['id'] = str(meta['id'])
+			ms = {}
+			ms['width'] = meta['width']
+			ms['height'] = meta['height']
+			ms['imageSize'] = meta['maxSize']
+			ms['fileSize'] = meta['fileSize']
+			ms['filePath'] = meta['maxSizeFileName']
+			mk = '_'+meta['maxSizeName']
+			meta[mk] = ms
+			imageMeta.save(meta)
+	except Exception,ex:
+		print traceback.format_exc()
+
+if __name__ == '__main__':
+	main()

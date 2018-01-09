@@ -1,0 +1,35 @@
+K 25
+svn:wc:ra_dav:version-url
+V 35
+/svn/master/!svn/ver/32/newimg/test
+END
+test01
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/master/!svn/ver/32/newimg/test/test01
+END
+test02
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/master/!svn/ver/32/newimg/test/test02
+END
+test03
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/master/!svn/ver/32/newimg/test/test03
+END
+test04
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/master/!svn/ver/32/newimg/test/test04
+END
+readme
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/master/!svn/ver/32/newimg/test/readme
+END
